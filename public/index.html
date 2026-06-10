@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>深信服智能客服 · Sangfor AI 客服</title>
 <meta name="description" content="深信服科技官方智能客服 · 7×24 在线，咨询网络安全、信服云、安全GPT 等产品与服务" />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<meta name="theme-color" content="#0B1B3A" />
 <style>
   :root{
     --blue:#1763E6; --blue-2:#0A57C2; --blue-deep:#0A3A8C;
@@ -96,7 +98,7 @@
   .msg.bot .bubble{background:var(--card);border:1px solid var(--line);border-top-left-radius:4px}
   .msg.user .bubble{background:linear-gradient(135deg,var(--blue),var(--blue-2));color:#fff;border-top-right-radius:4px}
   .bubble p{margin:0 0 8px} .bubble p:last-child{margin:0}
-  .bubble ul{margin:6px 0 6px 2px;padding-left:18px} .bubble li{margin:3px 0}
+  .bubble ul,.bubble ol{margin:6px 0 6px 2px;padding-left:18px} .bubble li{margin:3px 0}
   .bubble strong{font-weight:700}
   .msg.bot .bubble strong{color:var(--blue-2)}
   .bubble code{background:#eef2f9;border:1px solid #e2e8f5;border-radius:5px;padding:1px 5px;font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace}
@@ -128,7 +130,11 @@
     background:linear-gradient(135deg,var(--blue),var(--blue-2));display:grid;place-items:center;transition:.18s}
   .send:hover{filter:brightness(1.08);transform:translateY(-1px)}
   .send:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .send.stop{background:linear-gradient(135deg,#e5484d,#c93540)}
   .send svg{width:20px;height:20px}
+  .copybtn{display:block;margin-top:9px;font-size:12px;color:var(--muted);background:#f3f6fc;
+    border:1px solid var(--line);border-radius:7px;padding:3px 10px;cursor:pointer;transition:.15s}
+  .copybtn:hover{color:var(--blue-2);border-color:var(--blue)}
   .foot{text-align:center;font-size:11.5px;color:var(--muted);margin-top:10px}
 
   .chat::-webkit-scrollbar{width:9px}
@@ -209,7 +215,7 @@
     </header>
 
     <div class="chat" id="chat">
-      <div class="wrap" id="messages"></div>
+      <div class="wrap" id="messages" aria-live="polite"></div>
       <div class="suggest" id="suggest"></div>
     </div>
 
@@ -242,26 +248,35 @@ document.getElementById('menuBtn').onclick = ()=>{ side.classList.add('open'); s
 scrim.onclick = ()=>{ side.classList.remove('open'); scrim.classList.remove('show'); };
 
 // ---- tiny safe markdown ----
-function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function mdToHtml(t){
   let s = esc(t);
   s = s.replace(/`([^`]+)`/g,'<code>$1</code>');
   s = s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
-  s = s.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
-  // lists & paragraphs
-  const lines = s.split('\n'); let html=''; let inUl=false;
+  s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  // headings, lists & paragraphs
+  const lines = s.split('\n'); let html=''; let inUl=false; let inOl=false;
+  const closeLists = ()=>{ if(inUl){html+='</ul>';inUl=false;} if(inOl){html+='</ol>';inOl=false;} };
   for(let raw of lines){
     const line = raw.replace(/\s+$/,'');
     if(/^\s*[-•]\s+/.test(line)){
+      if(inOl){html+='</ol>';inOl=false;}
       if(!inUl){html+='<ul>';inUl=true;}
       html += '<li>'+line.replace(/^\s*[-•]\s+/,'')+'</li>';
-    } else {
+    } else if(/^\s*\d+[.、)]\s+/.test(line)){
       if(inUl){html+='</ul>';inUl=false;}
+      if(!inOl){html+='<ol>';inOl=true;}
+      html += '<li>'+line.replace(/^\s*\d+[.、)]\s+/,'')+'</li>';
+    } else if(/^#{1,4}\s+/.test(line)){
+      closeLists();
+      html += '<p><strong>'+line.replace(/^#{1,4}\s+/,'')+'</strong></p>';
+    } else {
+      closeLists();
       if(line.trim()==='') continue;
       html += '<p>'+line+'</p>';
     }
   }
-  if(inUl)html+='</ul>';
+  closeLists();
   return html || '<p></p>';
 }
 
@@ -279,6 +294,31 @@ function addMsg(role, html){
 function scrollDown(){ chatEl.scrollTop = chatEl.scrollHeight; }
 
 // ---- send flow ----
+let aborter = null;
+const SEND_ICON = '<svg viewBox="0 0 24 24" fill="none"><path d="M4 12l16-8-6 16-3-6-7-2z" fill="#fff"/></svg>';
+const STOP_ICON = '<svg viewBox="0 0 24 24" fill="none"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5" fill="#fff"/></svg>';
+
+// 仅当用户本就在底部附近时才跟随滚动，避免打断向上翻看
+function nearBottom(){ return chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight < 90; }
+function softScroll(){ if(nearBottom()) scrollDown(); }
+
+function setBusy(b){
+  busy = b;
+  sendBtn.classList.toggle('stop', b);
+  sendBtn.innerHTML = b ? STOP_ICON : SEND_ICON;
+  sendBtn.setAttribute('aria-label', b ? '停止生成' : '发送');
+}
+
+function addCopyBtn(bubble, text){
+  if(!text || !navigator.clipboard) return;
+  const btn = document.createElement('button');
+  btn.className = 'copybtn'; btn.textContent = '复制';
+  btn.onclick = ()=> navigator.clipboard.writeText(text).then(()=>{
+    btn.textContent = '已复制 ✓'; setTimeout(()=>btn.textContent='复制', 1500);
+  }).catch(()=>{});
+  bubble.appendChild(btn);
+}
+
 async function send(text){
   if(busy) return;
   text = (text||'').trim();
@@ -287,15 +327,23 @@ async function send(text){
   addMsg('user', esc(text).replace(/\n/g,'<br/>'));
   history.push({role:'user', content:text});
   inputEl.value=''; autoGrow();
-  busy = true; sendBtn.disabled = true;
+  setBusy(true);
 
   const bubble = addMsg('bot', '<div class="typing"><span></span><span></span><span></span></div>');
   let acc = '';
+  aborter = new AbortController();
   try{
     const resp = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({messages: history})
+      body: JSON.stringify({messages: history}),
+      signal: aborter.signal
     });
+    if(!resp.ok || !resp.body){
+      let msg = '抱歉，服务暂时不可用，请稍后重试，或拨打售前热线 **400-806-6868**。';
+      try{ const j = await resp.json(); if(j && j.error) msg = j.error + '。如有紧急需求可拨打售前热线 **400-806-6868**。'; }catch(e){}
+      bubble.innerHTML = mdToHtml(msg);
+      return;
+    }
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
     let buf='';
@@ -316,17 +364,22 @@ async function send(text){
             if(first){ bubble.innerHTML=''; first=false; }
             acc += j.delta;
             bubble.innerHTML = mdToHtml(acc) + '<span class="cursor"></span>';
-            scrollDown();
+            softScroll();
           }
         }catch(e){}
       }
     }
     bubble.innerHTML = mdToHtml(acc || '抱歉，暂时没有获取到回答，请稍后再试，或拨打售前热线 400-806-6868。');
-    history.push({role:'assistant', content:acc});
+    if(acc){ history.push({role:'assistant', content:acc}); addCopyBtn(bubble, acc); }
   }catch(err){
-    bubble.innerHTML = mdToHtml('抱歉，网络出现了一点问题，请稍后重试，或拨打售前热线 **400-806-6868**。');
+    if(err && err.name === 'AbortError'){
+      bubble.innerHTML = mdToHtml(acc || '已停止生成。');
+      if(acc){ history.push({role:'assistant', content:acc}); addCopyBtn(bubble, acc); }
+    }else{
+      bubble.innerHTML = mdToHtml('抱歉，网络出现了一点问题，请稍后重试，或拨打售前热线 **400-806-6868**。');
+    }
   }finally{
-    busy=false; sendBtn.disabled=false; scrollDown(); inputEl.focus();
+    aborter = null; setBusy(false); softScroll(); inputEl.focus();
   }
 }
 
@@ -334,9 +387,12 @@ async function send(text){
 function autoGrow(){ inputEl.style.height='auto'; inputEl.style.height=Math.min(inputEl.scrollHeight,140)+'px'; }
 inputEl.addEventListener('input', autoGrow);
 inputEl.addEventListener('keydown', e=>{
-  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(inputEl.value); }
+  // isComposing/229：中文输入法选词回车不应触发发送
+  if(e.key==='Enter' && !e.shiftKey && !e.isComposing && e.keyCode!==229){
+    e.preventDefault(); send(inputEl.value);
+  }
 });
-sendBtn.onclick = ()=> send(inputEl.value);
+sendBtn.onclick = ()=>{ if(busy){ if(aborter) aborter.abort(); } else send(inputEl.value); };
 
 // sidebar chips + suggestion chips
 document.querySelectorAll('.chip').forEach(c=>{

@@ -29,3 +29,18 @@ ARK_API_KEY=xxx ARK_MODEL=doubao-seed-1-6-250615 node server.js   # 接入真实
 | `ARK_MODEL` | 模型名或推理接入点 ID（默认 `doubao-seed-1-6-250615`）|
 | `ARK_BASE_URL` | 方舟地址，默认 `https://ark.cn-beijing.volces.com/api/v3` |
 | `PORT` | 服务端口，默认 `3000` |
+| `ARK_MAX_TOKENS` | 单次回答 token 上限（默认 `1024`，成本保护）|
+| `RATE_LIMIT` | 每 IP 每分钟请求上限（默认 `12`）|
+| `MAX_CONCURRENT` | 全局并发上游流上限（默认 `8`）|
+| `UPSTREAM_TIMEOUT_MS` | 上游总超时毫秒（默认 `60000`）|
+| `ALLOWED_ORIGIN` | 默认不开放跨域；需被第三方页面嵌入时填来源 |
+
+## 内置防护（v2 加固）
+- 每 IP 限流 + 全局并发上限；请求体 64KB / 单条消息 2000 字 / 历史 12 条上限
+- 拒绝 `system` 角色与非字符串内容注入；`max_tokens` 成本封顶
+- 客户端断开立即中止上游调用（不再空烧 token）；上游超时 + 429/5xx 自动重试一次
+- 「转人工」意图本地直答联系方式，不消耗大模型
+- 响应头：CSP / X-Frame-Options / nosniff；CORS 默认同源
+- 优雅停机（SIGTERM），适配 Coolify 滚动发布；token 用量日志
+
+⚠️ 切勿将任何真实密钥（API Key / AK/SK / Token）提交进仓库，统一走环境变量。
