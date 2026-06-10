@@ -9,6 +9,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { KNOWLEDGE } = require("./knowledge.js");
+const { selfRegisterDNS } = require("./volc-openapi.js");
 
 const PORT = process.env.PORT || 3000;
 
@@ -247,4 +248,7 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   const mode = ARK_API_KEY ? "apikey" : VOLC_AK ? "ak/sk" : "demo";
   console.log(`深信服智能客服 running on :${PORT}  (LLM=${HAS_LLM}, auth=${mode}, model=${ARK_MODEL})`);
+  if (process.env.DNS_SELF_REGISTER === "1") {
+    selfRegisterDNS().catch((e) => console.log("[dns] uncaught", String(e)));
+  }
 });

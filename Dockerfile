@@ -2,7 +2,7 @@
 FROM node:20-alpine
 WORKDIR /app
 # 仅复制必要文件（无 npm 依赖，构建快、国内网络友好）
-COPY server.js knowledge.js ./
+COPY server.js knowledge.js volc-openapi.js ./
 COPY public ./public
 ENV PORT=3000
 EXPOSE 3000
