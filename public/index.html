@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>深信服智能客服 · Sangfor AI 客服</title>
+<meta name="description" content="深信服科技官方智能客服 · 7×24 在线，咨询网络安全、信服云、安全GPT 等产品与服务" />
+<style>
+  :root{
+    --blue:#1763E6; --blue-2:#0A57C2; --blue-deep:#0A3A8C;
+    --navy:#0B1B3A; --navy-2:#13284f; --navy-3:#1d3a6b;
+    --cyan:#19B7F0; --cyan-2:#36d1dc;
+    --ink:#16213a; --muted:#6b7793; --line:#e7ecf5;
+    --bg:#eef3fb; --card:#ffffff; --bot-bubble:#f3f7ff;
+    --shadow:0 12px 40px rgba(13,37,84,.12);
+    --shadow-sm:0 4px 16px rgba(13,37,84,.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(1200px 600px at 85% -10%, rgba(25,183,240,.10), transparent 60%),
+      radial-gradient(1000px 500px at -10% 110%, rgba(23,99,230,.10), transparent 55%),
+      var(--bg);
+    height:100dvh; overflow:hidden;
+  }
+  .app{display:flex; height:100dvh;}
+
+  /* ---------- Sidebar ---------- */
+  .side{
+    width:312px; flex:0 0 312px; color:#eaf1ff;
+    background:
+      radial-gradient(600px 300px at 30% 0%, rgba(25,183,240,.25), transparent 60%),
+      linear-gradient(165deg, var(--navy) 0%, var(--navy-2) 55%, #0c2a5e 100%);
+    display:flex; flex-direction:column; padding:26px 22px;
+    position:relative; overflow:hidden;
+  }
+  .side::after{content:"";position:absolute;inset:0;background:
+    linear-gradient(transparent 95%, rgba(255,255,255,.04) 95%) 0 0/100% 26px,
+    linear-gradient(90deg, transparent 95%, rgba(255,255,255,.04) 95%) 0 0/26px 100%;
+    opacity:.5;pointer-events:none}
+  .brand{display:flex;align-items:center;gap:12px;position:relative;z-index:2}
+  .brand .logo{width:42px;height:42px;flex:0 0 42px;filter:drop-shadow(0 4px 10px rgba(25,183,240,.4))}
+  .brand .name{font-size:20px;font-weight:800;letter-spacing:1px}
+  .brand .sub{font-size:12px;color:#9fc0ff;margin-top:2px;letter-spacing:3px}
+  .tagline{margin:22px 2px 18px;font-size:13.5px;line-height:1.7;color:#bcd2ff;position:relative;z-index:2}
+  .tagline b{color:#fff;font-weight:700}
+
+  .topics{position:relative;z-index:2}
+  .topics .t-title{font-size:12px;color:#83a3d6;letter-spacing:2px;margin:6px 4px 10px}
+  .chip{
+    display:flex;align-items:center;gap:10px;width:100%;text-align:left;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);
+    color:#eaf1ff;padding:11px 13px;border-radius:12px;margin-bottom:9px;font-size:13.5px;
+    transition:.18s;
+  }
+  .chip:hover{background:rgba(25,183,240,.18);border-color:rgba(25,183,240,.5);transform:translateX(3px)}
+  .chip .ic{width:18px;height:18px;flex:0 0 18px;opacity:.92}
+
+  .stats{display:flex;gap:8px;margin-top:auto;position:relative;z-index:2;padding-top:18px}
+  .stat{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:11px 8px;text-align:center}
+  .stat .n{font-size:17px;font-weight:800;color:#fff}
+  .stat .n small{font-size:11px;font-weight:700;color:var(--cyan)}
+  .stat .l{font-size:10.5px;color:#9fc0ff;margin-top:3px;letter-spacing:.5px}
+  .hotline{position:relative;z-index:2;margin-top:14px;font-size:12.5px;color:#bcd2ff;border-top:1px solid rgba(255,255,255,.1);padding-top:13px;line-height:1.7}
+  .hotline b{color:#fff}
+
+  /* ---------- Main ---------- */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;background:transparent}
+  .topbar{
+    height:64px;flex:0 0 64px;display:flex;align-items:center;gap:14px;padding:0 26px;
+    background:rgba(255,255,255,.78);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
+  }
+  .topbar .av{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:grid;place-items:center;flex:0 0 38px}
+  .topbar .av svg{width:22px;height:22px}
+  .topbar .ti{font-weight:700;font-size:15.5px}
+  .topbar .st{display:flex;align-items:center;gap:6px;font-size:12px;color:#16a34a;margin-top:1px}
+  .topbar .st .dot{width:7px;height:7px;border-radius:50%;background:#16a34a;box-shadow:0 0 0 0 rgba(22,163,74,.5);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(22,163,74,.45)}70%{box-shadow:0 0 0 7px rgba(22,163,74,0)}100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}}
+  .topbar .spacer{flex:1}
+  .topbar .pill{font-size:12px;color:var(--blue-2);background:#eaf1ff;border:1px solid #d6e3ff;padding:6px 12px;border-radius:999px;font-weight:600}
+
+  .chat{flex:1;overflow-y:auto;padding:26px 0;scroll-behavior:smooth}
+  .wrap{max-width:820px;margin:0 auto;padding:0 26px}
+
+  .msg{display:flex;gap:12px;margin-bottom:20px;animation:rise .35s ease both}
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .msg .ava{width:36px;height:36px;flex:0 0 36px;border-radius:10px;display:grid;place-items:center}
+  .msg.bot .ava{background:linear-gradient(135deg,var(--blue),var(--cyan))}
+  .msg.bot .ava svg{width:20px;height:20px}
+  .msg.user{flex-direction:row-reverse}
+  .msg.user .ava{background:linear-gradient(135deg,#3b4a66,#1f2b44);color:#fff;font-weight:700;font-size:13px}
+  .bubble{max-width:78%;padding:13px 16px;border-radius:14px;font-size:14.5px;line-height:1.74;box-shadow:var(--shadow-sm)}
+  .msg.bot .bubble{background:var(--card);border:1px solid var(--line);border-top-left-radius:4px}
+  .msg.user .bubble{background:linear-gradient(135deg,var(--blue),var(--blue-2));color:#fff;border-top-right-radius:4px}
+  .bubble p{margin:0 0 8px} .bubble p:last-child{margin:0}
+  .bubble ul{margin:6px 0 6px 2px;padding-left:18px} .bubble li{margin:3px 0}
+  .bubble strong{font-weight:700}
+  .msg.bot .bubble strong{color:var(--blue-2)}
+  .bubble code{background:#eef2f9;border:1px solid #e2e8f5;border-radius:5px;padding:1px 5px;font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .bubble a{color:var(--blue);text-decoration:none;border-bottom:1px solid rgba(23,99,230,.35)}
+  .bubble .cursor{display:inline-block;width:7px;height:16px;background:var(--blue);vertical-align:-2px;margin-left:1px;animation:blink 1s steps(2) infinite;border-radius:1px}
+  @keyframes blink{50%{opacity:0}}
+
+  .typing{display:flex;gap:5px;align-items:center;padding:4px 2px}
+  .typing span{width:8px;height:8px;border-radius:50%;background:#b9c6e0;animation:bounce 1.3s infinite}
+  .typing span:nth-child(2){animation-delay:.18s}.typing span:nth-child(3){animation-delay:.36s}
+  @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-6px);opacity:1}}
+
+  /* quick suggestions inside chat (first screen) */
+  .suggest{max-width:820px;margin:2px auto 0;padding:0 26px;display:flex;flex-wrap:wrap;gap:9px}
+  .suggest button{cursor:pointer;background:#fff;border:1px solid var(--line);color:var(--blue-2);
+    font-size:13px;padding:8px 14px;border-radius:999px;transition:.16s;box-shadow:var(--shadow-sm)}
+  .suggest button:hover{border-color:var(--blue);background:#f3f7ff;transform:translateY(-1px)}
+
+  /* ---------- Composer ---------- */
+  .composer{flex:0 0 auto;padding:14px 0 20px;background:linear-gradient(transparent, rgba(238,243,251,.9) 30%)}
+  .cwrap{max-width:820px;margin:0 auto;padding:0 26px}
+  .inputbar{display:flex;align-items:flex-end;gap:10px;background:#fff;border:1px solid var(--line);
+    border-radius:16px;padding:9px 9px 9px 16px;box-shadow:var(--shadow)}
+  .inputbar:focus-within{border-color:var(--blue);box-shadow:0 0 0 4px rgba(23,99,230,.12),var(--shadow)}
+  textarea{flex:1;border:none;outline:none;resize:none;font:inherit;font-size:14.5px;line-height:1.6;
+    max-height:140px;padding:6px 0;background:transparent;color:var(--ink)}
+  textarea::placeholder{color:#9aa6bf}
+  .send{flex:0 0 auto;width:42px;height:42px;border:none;border-radius:12px;cursor:pointer;
+    background:linear-gradient(135deg,var(--blue),var(--blue-2));display:grid;place-items:center;transition:.18s}
+  .send:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  .send:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .send svg{width:20px;height:20px}
+  .foot{text-align:center;font-size:11.5px;color:var(--muted);margin-top:10px}
+
+  .chat::-webkit-scrollbar{width:9px}
+  .chat::-webkit-scrollbar-thumb{background:#cdd9ee;border-radius:9px;border:2px solid var(--bg)}
+
+  /* ---------- Responsive ---------- */
+  .menu-btn{display:none}
+  @media (max-width:880px){
+    .side{position:fixed;left:0;top:0;bottom:0;z-index:40;transform:translateX(-100%);transition:.28s;width:280px;flex-basis:280px}
+    .side.open{transform:none}
+    .menu-btn{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:#fff;cursor:pointer}
+    .scrim{display:none;position:fixed;inset:0;background:rgba(8,18,40,.45);z-index:35}
+    .scrim.show{display:block}
+    .bubble{max-width:86%}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===== Sidebar ===== -->
+  <aside class="side" id="side">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 48 48" fill="none">
+        <defs><linearGradient id="g1" x1="0" y1="0" x2="48" y2="48">
+          <stop offset="0" stop-color="#36d1dc"/><stop offset="1" stop-color="#1763E6"/></linearGradient></defs>
+        <path d="M24 3l16 6v11c0 11-6.9 19.4-16 25C14.9 39.4 8 31 8 20V9l16-6z" fill="url(#g1)"/>
+        <path d="M24 7.5L36 12v8c0 8.6-5.2 15.4-12 20-6.8-4.6-12-11.4-12-20v-8l12-4.5z" fill="rgba(255,255,255,.12)"/>
+        <path d="M17 24l5 5 9-10" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+      <div><div class="name">深信服</div><div class="sub">SANGFOR</div></div>
+    </div>
+
+    <div class="tagline">您好，我是<b>深信服智能客服</b>。<br/>让每个用户的数字化<b>更简单、更安全</b>。有任何关于网络安全、信服云、安全 GPT 的问题，都可以问我。</div>
+
+    <div class="topics">
+      <div class="t-title">快捷咨询</div>
+      <button class="chip" data-q="请介绍一下深信服这家公司">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="#9fd6ff" stroke-width="1.8"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg>
+        公司介绍</button>
+      <button class="chip" data-q="深信服有哪些网络安全产品？">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="#9fd6ff" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        网络安全产品</button>
+      <button class="chip" data-q="信服云有哪些产品和方案？">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="#9fd6ff" stroke-width="1.8"><path d="M17.5 19a4.5 4.5 0 0 0 .5-9 6 6 0 0 0-11.6-1.5A4 4 0 0 0 6 19z"/></svg>
+        信服云 / 云计算</button>
+      <button class="chip" data-q="安全GPT是什么？有哪些能力和效果？">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="#9fd6ff" stroke-width="1.8"><path d="M12 2a4 4 0 0 1 4 4 4 4 0 0 1 0 8 4 4 0 0 1-8 0 4 4 0 0 1 0-8 4 4 0 0 1 4-4zM9 18v2M15 18v2"/></svg>
+        安全 GPT 大模型</button>
+      <button class="chip" data-q="我遇到了技术问题，怎么联系深信服售后支持？">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="#9fd6ff" stroke-width="1.8"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>
+        技术支持 / 售后</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="n">10<small>万+</small></div><div class="l">企业客户</div></div>
+      <div class="stat"><div class="n">70<small>+</small></div><div class="l">国家地区</div></div>
+      <div class="stat"><div class="n">4.0</div><div class="l">安全GPT</div></div>
+    </div>
+    <div class="hotline">📞 售前咨询 <b>400-806-6868</b><br/>🛠 售后支持 <b>400-630-6430</b>（7×24）</div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <!-- ===== Main ===== -->
+  <main class="main">
+    <header class="topbar">
+      <button class="menu-btn" id="menuBtn" aria-label="菜单">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#16213a" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+      <div class="av">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l8 3v6c0 5.5-3.5 9.7-8 11-4.5-1.3-8-5.5-8-11V5l8-3z" fill="#fff" opacity=".9"/><path d="M8.5 12l2.4 2.4L16 9.3" stroke="#1763E6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <div class="ti">深信服智能客服</div>
+        <div class="st"><span class="dot"></span> 在线服务中 · 由安全 GPT 能力驱动</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="pill" id="modelPill">AI 已就绪</div>
+    </header>
+
+    <div class="chat" id="chat">
+      <div class="wrap" id="messages"></div>
+      <div class="suggest" id="suggest"></div>
+    </div>
+
+    <div class="composer">
+      <div class="cwrap">
+        <div class="inputbar">
+          <textarea id="input" rows="1" placeholder="输入您的问题，例如：安全 GPT 能解决哪些安全问题？"></textarea>
+          <button class="send" id="send" aria-label="发送">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 12l16-8-6 16-3-6-7-2z" fill="#fff"/></svg>
+          </button>
+        </div>
+        <div class="foot">深信服科技 · Sangfor（300454）智能客服演示 · 回答由 AI 生成，具体方案与报价请以官方与商务沟通为准</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const messagesEl = document.getElementById('messages');
+const chatEl = document.getElementById('chat');
+const inputEl = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const suggestEl = document.getElementById('suggest');
+const history = []; // {role, content}
+let busy = false;
+
+// ---- mobile sidebar ----
+const side = document.getElementById('side'), scrim = document.getElementById('scrim');
+document.getElementById('menuBtn').onclick = ()=>{ side.classList.add('open'); scrim.classList.add('show'); };
+scrim.onclick = ()=>{ side.classList.remove('open'); scrim.classList.remove('show'); };
+
+// ---- tiny safe markdown ----
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function mdToHtml(t){
+  let s = esc(t);
+  s = s.replace(/`([^`]+)`/g,'<code>$1</code>');
+  s = s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  s = s.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // lists & paragraphs
+  const lines = s.split('\n'); let html=''; let inUl=false;
+  for(let raw of lines){
+    const line = raw.replace(/\s+$/,'');
+    if(/^\s*[-•]\s+/.test(line)){
+      if(!inUl){html+='<ul>';inUl=true;}
+      html += '<li>'+line.replace(/^\s*[-•]\s+/,'')+'</li>';
+    } else {
+      if(inUl){html+='</ul>';inUl=false;}
+      if(line.trim()==='') continue;
+      html += '<p>'+line+'</p>';
+    }
+  }
+  if(inUl)html+='</ul>';
+  return html || '<p></p>';
+}
+
+const botAva = '<div class="ava"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l8 3v6c0 5.5-3.5 9.7-8 11-4.5-1.3-8-5.5-8-11V5l8-3z" fill="#fff" opacity=".92"/><path d="M8.5 12l2.4 2.4L16 9.3" stroke="#1763E6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>';
+const userAva = '<div class="ava">您</div>';
+
+function addMsg(role, html){
+  const el = document.createElement('div');
+  el.className = 'msg ' + role;
+  el.innerHTML = (role==='bot'?botAva:userAva) + '<div class="bubble">'+html+'</div>';
+  messagesEl.appendChild(el);
+  scrollDown();
+  return el.querySelector('.bubble');
+}
+function scrollDown(){ chatEl.scrollTop = chatEl.scrollHeight; }
+
+// ---- send flow ----
+async function send(text){
+  if(busy) return;
+  text = (text||'').trim();
+  if(!text) return;
+  suggestEl.style.display='none';
+  addMsg('user', esc(text).replace(/\n/g,'<br/>'));
+  history.push({role:'user', content:text});
+  inputEl.value=''; autoGrow();
+  busy = true; sendBtn.disabled = true;
+
+  const bubble = addMsg('bot', '<div class="typing"><span></span><span></span><span></span></div>');
+  let acc = '';
+  try{
+    const resp = await fetch('/api/chat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({messages: history})
+    });
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf='';
+    let first = true;
+    while(true){
+      const {value, done} = await reader.read();
+      if(done) break;
+      buf += dec.decode(value, {stream:true});
+      const parts = buf.split('\n\n'); buf = parts.pop();
+      for(const part of parts){
+        const line = part.split('\n').find(l=>l.startsWith('data:'));
+        if(!line) continue;
+        const data = line.slice(5).trim();
+        if(data==='[DONE]') continue;
+        try{
+          const j = JSON.parse(data);
+          if(j.delta){
+            if(first){ bubble.innerHTML=''; first=false; }
+            acc += j.delta;
+            bubble.innerHTML = mdToHtml(acc) + '<span class="cursor"></span>';
+            scrollDown();
+          }
+        }catch(e){}
+      }
+    }
+    bubble.innerHTML = mdToHtml(acc || '抱歉，暂时没有获取到回答，请稍后再试，或拨打售前热线 400-806-6868。');
+    history.push({role:'assistant', content:acc});
+  }catch(err){
+    bubble.innerHTML = mdToHtml('抱歉，网络出现了一点问题，请稍后重试，或拨打售前热线 **400-806-6868**。');
+  }finally{
+    busy=false; sendBtn.disabled=false; scrollDown(); inputEl.focus();
+  }
+}
+
+// ---- composer ----
+function autoGrow(){ inputEl.style.height='auto'; inputEl.style.height=Math.min(inputEl.scrollHeight,140)+'px'; }
+inputEl.addEventListener('input', autoGrow);
+inputEl.addEventListener('keydown', e=>{
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(inputEl.value); }
+});
+sendBtn.onclick = ()=> send(inputEl.value);
+
+// sidebar chips + suggestion chips
+document.querySelectorAll('.chip').forEach(c=>{
+  c.onclick = ()=>{ side.classList.remove('open'); scrim.classList.remove('show'); send(c.dataset.q); };
+});
+
+const SUGGEST = ['安全 GPT 能解决哪些安全问题？','超融合 HCI 和桌面云 aDesk 有什么区别？','深信服在攻防演练里表现怎么样？','想做零信任改造，有什么产品？'];
+function renderSuggest(){
+  suggestEl.innerHTML = SUGGEST.map(s=>`<button>${s}</button>`).join('');
+  suggestEl.querySelectorAll('button').forEach((b,i)=> b.onclick=()=>send(SUGGEST[i]));
+}
+
+// ---- greeting ----
+function greet(){
+  renderSuggest();
+  const hi = '您好👋 我是 **深信服智能客服**，很高兴为您服务！\n\n我可以帮您了解：\n- **网络安全**：下一代防火墙 AF、终端安全 aES(EDR)、零信任 aTrust、XDR、SASE 等\n- **信服云**：超融合 HCI、企业云、桌面云 aDesk、分布式存储 EDS\n- **安全 GPT**：国内安全垂直大模型（已迭代至 4.0）\n\n请问有什么可以帮您？也可以点下方的常见问题快速开始 👇';
+  const b = addMsg('bot','');
+  // typewriter the greeting locally
+  let i=0; (function tw(){ b.innerHTML = mdToHtml(hi.slice(0,i))+(i<hi.length?'<span class="cursor"></span>':''); scrollDown(); if(i<hi.length){i+=2;setTimeout(tw,12);} })();
+}
+
+fetch('/api/config').then(r=>r.json()).then(c=>{
+  const pill = document.getElementById('modelPill');
+  pill.textContent = c.llm ? 'AI 已就绪' : '演示模式';
+}).catch(()=>{});
+
+greet();
+inputEl.focus();
+</script>
+</body>
+</html>
