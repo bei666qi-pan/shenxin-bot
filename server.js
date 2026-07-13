@@ -38,6 +38,19 @@ const RATE_LIMIT = parseInt(process.env.RATE_LIMIT || "12", 10);      // 每 IP 
 const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT || "8", 10); // 全局并发上游流上限
 // CORS：默认不开放跨域（页面同源加载，无需 CORS）。需要被第三方站点嵌入时设置 ALLOWED_ORIGIN
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "";
+const ANALYTICS_URL = process.env.ANALYTICS_URL || "";
+const ANALYTICS_TOKEN = process.env.ANALYTICS_TOKEN || "";
+
+function track(req, event) {
+  if (!ANALYTICS_URL || !ANALYTICS_TOKEN) return;
+  const forwarded = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
+  fetch(`${ANALYTICS_URL.replace(/\/$/, "")}/api/collect`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${ANALYTICS_TOKEN}`, "X-Forwarded-For": String(forwarded).split(",")[0] },
+    body: JSON.stringify(event),
+    signal: AbortSignal.timeout(2500),
+  }).catch(() => {});
+}
 
 // ---- 火山引擎 V4 签名（AK/SK 直连，无需控制台 API Key）----
 function hmac(key, data) {
@@ -329,6 +342,7 @@ async function handleChat(req, res) {
   if (HUMAN_RE.test(lastUser)) {
     await typeOut(humanHandoffAnswer(), 6);
     log("handoff");
+    track(req, { type: "chat", status: "handoff", duration: Date.now() - t0 });
     return finish();
   }
 
@@ -336,6 +350,7 @@ async function handleChat(req, res) {
   if (!HAS_LLM) {
     await typeOut(fallbackAnswer(lastUser), 12);
     log("demo");
+    track(req, { type: "chat", status: "demo", duration: Date.now() - t0 });
     return finish();
   }
 
@@ -388,6 +403,7 @@ async function handleChat(req, res) {
     buf += decoder.decode(); // 冲洗解码器残留
     if (buf) handleLine(buf);
     log("ok", usage ? `tokens=${usage.prompt_tokens}+${usage.completion_tokens} out=${outChars}ch` : `out=${outChars}ch`);
+    track(req, { type: "chat", status: "ok", duration: Date.now() - t0 });
     finish();
   } catch (err) {
     if (closed) {
@@ -396,6 +412,7 @@ async function handleChat(req, res) {
       console.error(`[chat] id=${reqId} upstream error:`, String(err).slice(0, 300));
       await typeOut(fallbackAnswer(lastUser), 8);
       log("fallback");
+      track(req, { type: "chat", status: "fallback", duration: Date.now() - t0 });
       finish();
     }
   } finally {
@@ -427,8 +444,13 @@ const server = http.createServer((req, res) => {
       console.error("chat fatal", e);
       if (!res.writableEnded) res.end();
     });
-  if (url === "/" || url === "/index.html")
+  if (url === "/" || url === "/index.html") {
+    const referer = req.headers.referer || "";
+    let source = "直接访问";
+    try { if (referer) source = new URL(referer).hostname || "直接访问"; } catch (_) {}
+    track(req, { type: "page_view", source });
     return send(res, 200, "text/html; charset=utf-8", INDEX_HTML, { "Content-Security-Policy": HTML_CSP });
+  }
   send(res, 404, "text/plain", "Not Found");
 });
 
