@@ -1,6 +1,6 @@
 // 深信服智能客服 · 零依赖 Node 服务（加固版）
 // - 提供静态页面 (public/index.html)
-// - POST /api/chat 流式代理到火山引擎方舟 (Ark) 大模型
+// - POST /api/chat 流式代理到 OpenAI 兼容的大模型服务
 // - 未配置/调用失败时回退到本地知识库应答，保证演示始终可用
 // - 安全加固：限流、请求体上限、输入校验、上游超时、断连中止、CORS 收紧、安全响应头
 // 运行：node server.js   需要 Node 18+ (内置 fetch)
@@ -14,21 +14,15 @@ const { selfRegisterDNS } = require("./volc-openapi.js");
 
 const PORT = process.env.PORT || 3000;
 
-// 火山引擎方舟配置（部署时通过环境变量注入）
-// 两种鉴权方式，二选一即可：
-//   1) ARK_API_KEY  —— 方舟控制台创建的 API Key（Bearer）
-//   2) VOLC_AK + VOLC_SK —— 访问密钥，使用火山引擎 V4 签名直接调用
-const ARK_API_KEY = process.env.ARK_API_KEY || "";
-const VOLC_AK = process.env.VOLC_AK || "";
-const VOLC_SK = process.env.VOLC_SK || "";
-const ARK_MODEL = process.env.ARK_MODEL || "doubao-seed-1-6-250615";
-const ARK_BASE_URL =
-  process.env.ARK_BASE_URL || "https://ark.cn-beijing.volces.com/api/v3";
-const ARK_REGION = process.env.ARK_REGION || "cn-beijing";
-const HAS_LLM = !!(ARK_API_KEY || (VOLC_AK && VOLC_SK));
+// OpenAI 兼容 API 配置（部署时通过环境变量注入）
+const LLM_API_KEY = process.env.LLM_API_KEY || "";
+const LLM_MODEL = process.env.LLM_MODEL || "deepseek-one";
+const LLM_BASE_URL =
+  (process.env.LLM_BASE_URL || "https://newkey.versecraft.cn/v1").replace(/\/$/, "");
+const HAS_LLM = !!LLM_API_KEY;
 
 // ---- 可调参数（均可用环境变量覆盖）----
-const MAX_TOKENS = parseInt(process.env.ARK_MAX_TOKENS || "1024", 10); // 单次回答 token 上限（成本保护）
+const MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS || "1024", 10); // 单次回答 token 上限（成本保护）
 const UPSTREAM_TIMEOUT_MS = parseInt(process.env.UPSTREAM_TIMEOUT_MS || "60000", 10); // 上游总超时
 const MAX_BODY_BYTES = 64 * 1024;          // 请求体上限 64KB
 const MAX_MSG_CHARS = 2000;                // 单条消息长度上限
@@ -50,65 +44,6 @@ function track(req, event) {
     body: JSON.stringify(event),
     signal: AbortSignal.timeout(2500),
   }).catch(() => {});
-}
-
-// ---- 火山引擎 V4 签名（AK/SK 直连，无需控制台 API Key）----
-function hmac(key, data) {
-  return crypto.createHmac("sha256", key).update(data, "utf8").digest();
-}
-function sha256hex(data) {
-  return crypto.createHash("sha256").update(data, "utf8").digest("hex");
-}
-function signedArkHeaders(bodyStr) {
-  const url = new URL(`${ARK_BASE_URL}/chat/completions`);
-  const host = url.host;
-  const canonicalURI = url.pathname;
-  const now = new Date();
-  const xDate =
-    now.toISOString().replace(/[:-]|\.\d{3}/g, "").replace(/\.\d+/, "");
-  // -> YYYYMMDDTHHMMSSZ
-  const shortDate = xDate.slice(0, 8);
-  const service = "ark";
-  const payloadHash = sha256hex(bodyStr);
-  const signedHeaders = "content-type;host;x-content-sha256;x-date";
-  const canonicalHeaders =
-    `content-type:application/json\n` +
-    `host:${host}\n` +
-    `x-content-sha256:${payloadHash}\n` +
-    `x-date:${xDate}\n`;
-  const canonicalRequest = [
-    "POST",
-    canonicalURI,
-    "",
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash,
-  ].join("\n");
-  const credentialScope = `${shortDate}/${ARK_REGION}/${service}/request`;
-  const stringToSign = [
-    "HMAC-SHA256",
-    xDate,
-    credentialScope,
-    sha256hex(canonicalRequest),
-  ].join("\n");
-  const kDate = hmac(VOLC_SK, shortDate);
-  const kRegion = hmac(kDate, ARK_REGION);
-  const kService = hmac(kRegion, service);
-  const kSigning = hmac(kService, "request");
-  const signature = crypto
-    .createHmac("sha256", kSigning)
-    .update(stringToSign, "utf8")
-    .digest("hex");
-  const authorization =
-    `HMAC-SHA256 Credential=${VOLC_AK}/${credentialScope}, ` +
-    `SignedHeaders=${signedHeaders}, Signature=${signature}`;
-  return {
-    "Content-Type": "application/json",
-    Host: host,
-    "X-Date": xDate,
-    "X-Content-Sha256": payloadHash,
-    Authorization: authorization,
-  };
 }
 
 const INDEX_HTML = fs.readFileSync(
@@ -240,23 +175,24 @@ function readBody(req, limit) {
 }
 
 // ---- 调用上游（带超时；429/5xx/网络错误自动重试一次）----
-async function callArk(bodyStr, signal) {
-  const headers = ARK_API_KEY
-    ? { "Content-Type": "application/json", Authorization: `Bearer ${ARK_API_KEY}` }
-    : signedArkHeaders(bodyStr);
+async function callLLM(bodyStr, signal) {
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${LLM_API_KEY}`,
+  };
   let lastErr = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 400 + Math.random() * 400));
     try {
-      const resp = await fetch(`${ARK_BASE_URL}/chat/completions`, {
+      const resp = await fetch(`${LLM_BASE_URL}/chat/completions`, {
         method: "POST",
-        headers: ARK_API_KEY ? headers : signedArkHeaders(bodyStr), // AK/SK 签名含时间戳，重试需重签
+        headers,
         body: bodyStr,
         signal,
       });
       if (resp.ok && resp.body) return resp;
       const errTxt = await resp.text().catch(() => "");
-      lastErr = new Error(`ark ${resp.status}: ${errTxt.slice(0, 300)}`);
+      lastErr = new Error(`llm ${resp.status}: ${errTxt.slice(0, 300)}`);
       // 仅对可重试错误继续循环
       if (![429, 500, 502, 503, 504].includes(resp.status)) break;
     } catch (e) {
@@ -264,7 +200,7 @@ async function callArk(bodyStr, signal) {
       lastErr = e;
     }
   }
-  throw lastErr || new Error("ark call failed");
+  throw lastErr || new Error("llm call failed");
 }
 
 async function handleChat(req, res) {
@@ -358,14 +294,14 @@ async function handleChat(req, res) {
   activeStreams++;
   try {
     const bodyStr = JSON.stringify({
-      model: ARK_MODEL,
+      model: LLM_MODEL,
       stream: true,
       stream_options: { include_usage: true },
       temperature: 0.6,
       max_tokens: MAX_TOKENS,
       messages: [{ role: "system", content: KNOWLEDGE }, ...messages],
     });
-    const upstream = await callArk(bodyStr, abort.signal);
+    const upstream = await callLLM(bodyStr, abort.signal);
 
     // 转发上游 SSE，逐行解析 OpenAI 兼容格式
     const reader = upstream.body.getReader();
@@ -459,8 +395,8 @@ server.requestTimeout = 0; // SSE 长连接，由业务层超时控制
 server.headersTimeout = 30_000;
 
 server.listen(PORT, () => {
-  const mode = ARK_API_KEY ? "apikey" : VOLC_AK ? "ak/sk" : "demo";
-  console.log(`深信服智能客服 running on :${PORT}  (LLM=${HAS_LLM}, auth=${mode}, model=${ARK_MODEL}, rate=${RATE_LIMIT}/min, max_tokens=${MAX_TOKENS})`);
+  const mode = LLM_API_KEY ? "apikey" : "demo";
+  console.log(`深信服智能客服 running on :${PORT}  (LLM=${HAS_LLM}, auth=${mode}, model=${LLM_MODEL}, rate=${RATE_LIMIT}/min, max_tokens=${MAX_TOKENS})`);
   if (process.env.DNS_SELF_REGISTER === "1") {
     selfRegisterDNS().catch((e) => console.log("[dns] uncaught", String(e)));
   }
